@@ -318,7 +318,7 @@ void loop(void)
     // if (! ble.waitForOK() ) {
     //   Serial.println(F("Failed to send?"));
     // }
-  }
+  // }
 
   // Run blub
   // Serial.println("Probe 1");
