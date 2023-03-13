@@ -23,6 +23,7 @@
 
 
 // Thermocouple header
+#include <PID_v1.h>
 #include <Wire.h>
 #include <Adafruit_I2CDevice.h>
 #include <Adafruit_I2CRegister.h>
@@ -127,15 +128,63 @@ extern const float fan_max_duty;
 #define FAN_MIN_DUTY_CYCLE 0.85   //0.7 * 24V
 #define FAN_MAX_DUTY_CYCLE 0.99999  //0.99 * 24V
 
-extern int fanspeed;
-extern int choice;
 
-int fanspeed = 0;  //setting for the fan speed, updated when the user adjusts the fan speed slider
-int counter = 0;
-int onboardtemp = 0;
-// ----------------------------------
+/* ********* GLOBALS ************/
+unsigned int pidWindowSize = 3600; //period in ms for relay PWM 
 
+double heatOnTime = 0; //when PID is enabled this value is written by reference
+                       //when PID is disabled this value can be written manually
+                       //This should be between 0 and pidWindowSize  
+                       //If this is set to pidWindowSize the heater will always be on 
+              
+double pidSetpoint = 50;   //pid setpoint 1-250C
 
+int onboardTemp = 25; //temperature of the onboard thermistor. This is updated inside of the PID timer interrupt routine
+double chamberTemp = 25; //temperature measured by a type-K thermocouple inside of the heating chamber. 
+int ambientTemp = 25; //temperature measured at the cold junction of the MCP9600
+
+unsigned long windowStartTime; //this is updated as part of the PID processing to handle heat PWM duty cycle 
+
+//aggressive PID constants are used when the chamber temp is far from the pidSetpoint [abs(error) > aggConsThresh]
+const double aggKp=120;
+const double aggKi=30;
+const double aggKd=60;
+
+//conservative PID constants are used when the chamber temp is near the pidSetpoint [abs(error) < aggConsThresh] 
+const double consKp=70;
+const double consKi=15;
+const double consKd=10;
+
+const double aggConsThresh=10; //threshold used for aggressive or conserative PID constants
+
+PID myPID(&chamberTemp, &heatOnTime, &pidSetpoint, aggKp, aggKi, aggKd, DIRECT);
+
+int read_packet(int start) {
+  int output = 0;
+  int add;
+
+  add = packetbuffer[start] - '0';
+  Serial.print("add100: ");
+  Serial.println(add);
+  output = 100 * add;
+
+  add = packetbuffer[start+1] - '0';
+  Serial.print("add 10:  ");
+  Serial.println(add);
+  output += 10 * add;
+
+  add = packetbuffer[start+2] - '0';
+  Serial.print("add  0:   ");
+  Serial.println(add);
+  output += add;
+
+  return output;
+}
+
+int read_fan() {
+  set_fan_speed(read_packet(2));
+  return read_packet(5);
+}
 
 /**************************************************************************/
 /*!
@@ -248,114 +297,19 @@ void loop(void)
   
   // Buttons
   if (len != 0) {
-    if (packetbuffer[1] == 'F') {
-
-      
-      int add = 0;
-      add = packetbuffer[2] - '0';
-
-      Serial.print("add100: ");
-      Serial.println(add);
-      fanspeed = 100 * add;
-      add = packetbuffer[3] - '0';
-      Serial.print("add 10:  ");
-      Serial.println(add);
-      fanspeed += 10 * add;
-      add = packetbuffer[4] - '0';
-      Serial.print("add  0:   ");
-      Serial.println(add);
-
-      fanspeed += add;
-      // Serial.print('100: '); Serial.println(packetbuffer[2]);
-      // Serial.print(' 10: '); Serial.println(packetbuffer[3]);
-      // Serial.print('  1: '); Serial.println(packetbuffer[4]);
-      // Serial.print('Setting fanspeed'); Serial.println(fanspeed);
-      set_fan_speed(fanspeed);
-      
-    } else if (packetbuffer[1] == 'B') {
-
-      if (packetbuffer[2] == '0') {
-        Serial.println("Disabling fan");
-        disable_fan();
-      } else if (packetbuffer[2] == '1') {
-        Serial.println("Enabling fan");
-        enable_fan();
-      } else {
-        Serial.print("packet buffer for B weird");
-      };
-    
-    } else if (packetbuffer[1] == 'H') {
-
-      if (packetbuffer[2] == '0') {
-        Serial.println("Disabling Heat");
-        disable_heat();
-      } else if (packetbuffer[2] == '1') {
-        Serial.println("Enabling Heat");
-        enable_heat();
-      } else {
-        Serial.print("packet buffer for H weird");
-      };
-    
+    if (packetbuffer[1] == 'T') {
+      pidSetpoint = read_fan();
+      enable_fan();
+      myPID.SetMode(AUTOMATIC);
+    } else if (packetbuffer[1] == 'P') {
+      set_heater_output_manual(read_fan());
+      enable_fan();
+      myPID.SetMode(MANUAL);
+    } else if (packetbuffer[1] == 'F') {
+      disable_fan();
+      disable_heater();
     };
   };
-
-  
-  if ( getUserInput(inputs, BUFSIZE) )
-  {
-    // Send characters to Bluefruit
-    Serial.print("[Send] ");
-    Serial.println(inputs);
-
-
-    if (inputs[0] == 'F') {
-
-      
-      int add = 0;
-      add = inputs[1] - '0';
-
-      Serial.print("add100: ");
-      Serial.println(add);
-      fanspeed = 100 * add;
-      add = inputs[2] - '0';
-      Serial.print("add 10:  ");
-      Serial.println(add);
-      fanspeed += 10 * add;
-      add = inputs[3] - '0';
-      Serial.print("add  0:   ");
-      Serial.println(add);
-
-      fanspeed += add;
-      // Serial.print('100: '); Serial.println(packetbuffer[2]);
-      // Serial.print(' 10: '); Serial.println(packetbuffer[3]);
-      // Serial.print('  1: '); Serial.println(packetbuffer[4]);
-      // Serial.print('Setting fanspeed'); Serial.println(fanspeed);
-      set_fan_speed(fanspeed);
-      
-    } else if (inputs[0] == 'B') {
-
-      if (inputs[1] == '0') {
-        Serial.println("Disabling fan");
-        disable_fan();
-      } else if (inputs[1] == '1') {
-        Serial.println("Enabling fan");
-        enable_fan();
-      } else {
-        Serial.print("INPUT for B weird");
-      };
-    
-    } else if (inputs[0] == 'H') {
-
-      if (inputs[1] == '0') {
-        Serial.println("Disabling Heat");
-        disable_heat();
-      } else if (inputs[1] == '1') {
-        Serial.println("Enabling Heat");
-        enable_heat();
-      } else {
-        Serial.print("INPUT for H weird");
-      };
-    
-    };
 
     // ble.print("");
     // ble.println(inputs);
@@ -366,7 +320,6 @@ void loop(void)
     // }
   }
 
-  delay(50);
   // Run blub
   // Serial.println("Probe 1");
   // Serial.println("---------------");
@@ -422,6 +375,10 @@ void loop(void)
   // }
 
 
+  chamberTemp=T1;
+  ambientTemp=T2;
+  run_pid();
+  delay(50);
  
 }
 
@@ -518,15 +475,57 @@ void setup_heat() {
   return;
 }
 
-
-void enable_heat() {
-  digitalWrite(heat_enable_pin, 1);
+void set_heater_output_manual(float heater_percent) {
+  
+  heatOnTime = (double)((heater_percent/100)*pidWindowSize);
+  if(heatOnTime > pidWindowSize) {
+    heatOnTime = pidWindowSize;
+  }
   return;
 }
 
-void disable_heat() {
-   digitalWrite(heat_enable_pin, 0);
+void disable_heater() {
+  myPID.SetMode(MANUAL);
+  set_heater_output_manual(0);
   return;
+}
+
+void initialize_pid(double init_setpoint) {
+   windowStartTime = millis();
+   pidSetpoint = init_setpoint; 
+   myPID.SetOutputLimits(0, pidWindowSize);
+   myPID.SetMode(MANUAL);
+   set_heater_output_manual(0);
+   return;
+}
+
+void run_pid() {
+      //todo: the section of code below can be set to run only when PID is enabled       
+      double gap = abs(chamberTemp-pidSetpoint); //distance away from setpoint
+      if (gap < aggConsThresh) {  
+        myPID.SetTunings(consKp, consKi, consKd); //we're close to setpoint, use conservative tuning parameters
+      } else {
+        myPID.SetTunings(aggKp, aggKi, aggKd); //we're far from setpoint, use aggressive tuning parameters
+      }
+      
+      myPID.Compute();
+      unsigned long now = millis();
+      if (now - windowStartTime > pidWindowSize)
+      { //time to shift the Relay Window
+        windowStartTime += pidWindowSize;
+      }
+        
+      if (heatOnTime > now - windowStartTime) {
+        digitalWrite(heat_enable_pin, 1);
+      } else {
+        digitalWrite(heat_enable_pin, 0);
+      }
+
+      Serial.print(" >>>");
+      Serial.print(heatOnTime);
+      Serial.println(now - windowStartTime);
+    
+      return;
 }
 
 
