@@ -23,7 +23,7 @@
 
 
 // Thermocouple header
-#include <PID_v1.h>
+#include <PID_v2.h>
 #include <Wire.h>
 #include <Adafruit_I2CDevice.h>
 #include <Adafruit_I2CRegister.h>
@@ -139,7 +139,7 @@ double heatOnTime = 0; //when PID is enabled this value is written by reference
               
 double pidSetpoint = 50;   //pid setpoint 1-250C
 
-int onboardTemp = 25; //temperature of the onboard thermistor. This is updated inside of the PID timer interrupt routine
+// int onboardTemp = 25; //temperature of the onboard thermistor. This is updated inside of the PID timer interrupt routine
 double chamberTemp = 25; //temperature measured by a type-K thermocouple inside of the heating chamber. 
 int ambientTemp = 25; //temperature measured at the cold junction of the MCP9600
 
@@ -154,6 +154,12 @@ const double aggKd=60;
 const double consKp=70;
 const double consKi=15;
 const double consKd=10;
+
+// PID profile start time
+unsigned long profileStartTime;
+int profileDuration;
+int profileStartTemp;
+int profileEndTemp;
 
 const double aggConsThresh=10; //threshold used for aggressive or conserative PID constants
 
@@ -198,7 +204,7 @@ void setup(void)
   set_fan_speed(0);  //set fan speed to 100, but does NOT enable fan
 
   while (!Serial);  // required for Flora & Micro
-  delay(500);
+  delay(50);
 
   Serial.begin(115200);
   Serial.println(F("Adafruit Bluefruit App Controller Example"));
@@ -243,7 +249,7 @@ void setup(void)
   
 
   Serial.println("Setup Heat");
-  disable_heat();
+  disable_heater();
   setup_heat();
 
 
@@ -295,21 +301,42 @@ void loop(void)
 
   
   
-  // Buttons
+  // Bluetooth message
   if (len != 0) {
-    if (packetbuffer[1] == 'T') {
-      pidSetpoint = read_fan();
-      enable_fan();
-      myPID.SetMode(AUTOMATIC);
-    } else if (packetbuffer[1] == 'P') {
-      set_heater_output_manual(read_fan());
-      enable_fan();
-      myPID.SetMode(MANUAL);
-    } else if (packetbuffer[1] == 'F') {
-      disable_fan();
-      disable_heater();
-    };
+    if (packetbuffer[1] == 'A') {
+      // PID with profile
+      profileStartTime = millis();
+      profileDuration = read_fan();
+      profileStartTemp = read_packet(8);
+      profileEndTemp = read_packet(11);
+    }
+    else {
+      profileStartTime = 0;
+      if (packetbuffer[1] == 'T') {
+        // PID with fixed temperature
+        pidSetpoint = read_fan();
+        enable_fan();
+        myPID.SetMode(AUTOMATIC);
+      } else if (packetbuffer[1] == 'P') {
+        // Manual mode
+        set_heater_output_manual(read_fan());
+        enable_fan();
+        myPID.SetMode(MANUAL);
+      } else if (packetbuffer[1] == 'F') {
+        // Turn off fan and heat
+        disable_fan();
+        disable_heater();
+      };
+    }
+    Serial.print("Packet: ");
+    Serial.println(packetbuffer[1]);
   };
+
+  // temperature profile
+  if (profileStartTime > 0) {
+    unsigned long now = millis();
+    pidSetpoint = profileStartTemp + ((float)profileEndTemp - (float)profileStartTemp) / profileDuration * (now - profileStartTime) / 1000;
+  }
 
     // ble.print("");
     // ble.println(inputs);
@@ -332,10 +359,10 @@ void loop(void)
   // Serial.print("Hot Junction: "); Serial.println(mcp2.readThermocouple());
   // Serial.print("Cold Junction: "); Serial.println(mcp2.readAmbient());
   // Serial.print("ADC: "); Serial.print(mcp2.readADC() * 2); Serial.println(" uV");
-  onboardtemp = read_onboard_temp();
-  Serial.println("---------------------------------------");
-  Serial.print("Probe 1: "); Serial.print(mcp1.readThermocouple()); Serial.print(" Probe 2: "); Serial.println(mcp2.readThermocouple());
-  Serial.print("Onboard: "); Serial.print(onboardtemp);
+  // onboardtemp = read_onboard_temp();
+  // Serial.println("---------------------------------------");
+  // Serial.print("Probe 1: "); Serial.print(mcp1.readThermocouple()); Serial.print(" Probe 2: "); Serial.println(mcp2.readThermocouple());
+  // Serial.print("Onboard: "); Serial.print(onboardtemp);
   
   uint8_t temp = 'T'; //mcp.readThermocouple();
   int T1 = mcp1.readThermocouple();
@@ -378,7 +405,7 @@ void loop(void)
   chamberTemp=T1;
   ambientTemp=T2;
   run_pid();
-  delay(50);
+  delay(1000);
  
 }
 
@@ -434,7 +461,7 @@ void set_fan_speed(int speed) {
   if (speed < 1)
     speed = 1;
 
-  fanspeed = speed;  //update global variable
+  // fanspeed = speed;  //update global variable
 
 
   float calc = float(speed) / 100 * (fan_max_duty - fan_min_duty) + fan_min_duty;
@@ -521,8 +548,11 @@ void run_pid() {
         digitalWrite(heat_enable_pin, 0);
       }
 
-      Serial.print(" >>>");
+      Serial.print(" >>> Setpoint:");
+      Serial.print(pidSetpoint);
+      Serial.print(" Heat: ");
       Serial.print(heatOnTime);
+      Serial.print(" Time: ");
       Serial.println(now - windowStartTime);
     
       return;

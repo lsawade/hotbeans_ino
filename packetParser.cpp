@@ -21,6 +21,11 @@
 #define PACKET_FANONOFF_LEN             (3)
 #define PACKET_HEATONOFF_LEN            (3)
 
+#define PACKET_OFF_LEN                  (2)
+#define PACKET_MANUAL_LEN               (8)
+#define PACKET_PID_LEN                  (8)
+#define PACKET_AUTO_LEN                 (14)
+
 //    READ_BUFSIZE            Size of the read buffer for incoming packets
 #define READ_BUFSIZE                    (20)
 
@@ -85,23 +90,33 @@ uint8_t readPacket(Adafruit_BLE *ble, uint16_t timeout)
 
   while (timeout--) {
     if (replyidx >= 20) break;
-    if ((packetbuffer[1] == 'A') && (replyidx == PACKET_ACC_LEN))
+    // if ((packetbuffer[1] == 'A') && (replyidx == PACKET_ACC_LEN))
+    //   break;
+    // if ((packetbuffer[1] == 'G') && (replyidx == PACKET_GYRO_LEN))
+    //   break;
+    // if ((packetbuffer[1] == 'M') && (replyidx == PACKET_MAG_LEN))
+    //   break;
+    // if ((packetbuffer[1] == 'Q') && (replyidx == PACKET_QUAT_LEN))
+    //   break;
+    // if ((packetbuffer[1] == 'C') && (replyidx == PACKET_COLOR_LEN))
+    //   break;
+    // if ((packetbuffer[1] == 'L') && (replyidx == PACKET_LOCATION_LEN))
+    //   break;
+    // if ((packetbuffer[1] == 'F') && (replyidx == PACKET_FANSPEED_LEN))
+    //   break;
+    // if ((packetbuffer[1] == 'B') && (replyidx == PACKET_FANONOFF_LEN))
+    //   break;
+    // if ((packetbuffer[1] == 'H') && (replyidx == PACKET_HEATONOFF_LEN))
+    //   break;
+
+
+    if ((packetbuffer[1] == 'A') && (replyidx == PACKET_AUTO_LEN))
       break;
-    if ((packetbuffer[1] == 'G') && (replyidx == PACKET_GYRO_LEN))
+    if ((packetbuffer[1] == 'P') && (replyidx == PACKET_PID_LEN))
       break;
-    if ((packetbuffer[1] == 'M') && (replyidx == PACKET_MAG_LEN))
+    if ((packetbuffer[1] == 'T') && (replyidx == PACKET_MANUAL_LEN))
       break;
-    if ((packetbuffer[1] == 'Q') && (replyidx == PACKET_QUAT_LEN))
-      break;
-    if ((packetbuffer[1] == 'C') && (replyidx == PACKET_COLOR_LEN))
-      break;
-    if ((packetbuffer[1] == 'L') && (replyidx == PACKET_LOCATION_LEN))
-      break;
-    if ((packetbuffer[1] == 'F') && (replyidx == PACKET_FANSPEED_LEN))
-      break;
-    if ((packetbuffer[1] == 'B') && (replyidx == PACKET_FANONOFF_LEN))
-      break;
-    if ((packetbuffer[1] == 'H') && (replyidx == PACKET_HEATONOFF_LEN))
+    if ((packetbuffer[1] == 'F') && (replyidx == PACKET_OFF_LEN))
       break;
 
 
