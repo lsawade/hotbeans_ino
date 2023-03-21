@@ -202,6 +202,7 @@ void setup(void)
 {
   setup_fan();  //setup fan pins, leave fan off
   set_fan_speed(0);  //set fan speed to 100, but does NOT enable fan
+  initialize_pid(0);
 
   while (!Serial);  // required for Flora & Micro
   delay(50);
@@ -402,8 +403,8 @@ void loop(void)
   // }
 
 
-  chamberTemp=T1;
-  ambientTemp=T2;
+  chamberTemp=T2;
+  ambientTemp=T1;
   run_pid();
   delay(1000);
  
