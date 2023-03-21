@@ -25,6 +25,8 @@
 #define PACKET_MANUAL_LEN               (8)
 #define PACKET_PID_LEN                  (8)
 #define PACKET_AUTO_LEN                 (14)
+#define PACKET_WIN_LEN                  (8)
+#define PACKET_K_LEN                    (11)
 
 //    READ_BUFSIZE            Size of the read buffer for incoming packets
 #define READ_BUFSIZE                    (20)
@@ -117,6 +119,12 @@ uint8_t readPacket(Adafruit_BLE *ble, uint16_t timeout)
     if ((packetbuffer[1] == 'T') && (replyidx == PACKET_MANUAL_LEN))
       break;
     if ((packetbuffer[1] == 'F') && (replyidx == PACKET_OFF_LEN))
+      break;
+    if ((packetbuffer[1] == 'W') && (replyidx == PACKET_WIN_LEN))
+      break;
+    if ((packetbuffer[1] == 'K') && (replyidx == PACKET_K_LEN))
+      break;
+    if ((packetbuffer[1] == 'L') && (replyidx == PACKET_K_LEN))
       break;
 
 

@@ -146,14 +146,14 @@ int ambientTemp = 25; //temperature measured at the cold junction of the MCP9600
 unsigned long windowStartTime; //this is updated as part of the PID processing to handle heat PWM duty cycle 
 
 //aggressive PID constants are used when the chamber temp is far from the pidSetpoint [abs(error) > aggConsThresh]
-const double aggKp=120;
-const double aggKi=30;
-const double aggKd=60;
+double aggKp=120;
+double aggKi=30;
+double aggKd=60;
 
 //conservative PID constants are used when the chamber temp is near the pidSetpoint [abs(error) < aggConsThresh] 
-const double consKp=70;
-const double consKi=15;
-const double consKd=10;
+double consKp=70;
+double consKi=15;
+double consKd=10;
 
 // PID profile start time
 unsigned long profileStartTime;
@@ -161,7 +161,7 @@ int profileDuration;
 int profileStartTemp;
 int profileEndTemp;
 
-const double aggConsThresh=10; //threshold used for aggressive or conserative PID constants
+double aggConsThresh=10; //threshold used for aggressive or conserative PID constants
 
 PID myPID(&chamberTemp, &heatOnTime, &pidSetpoint, aggKp, aggKi, aggKd, DIRECT);
 
@@ -327,7 +327,22 @@ void loop(void)
         // Turn off fan and heat
         disable_fan();
         disable_heater();
-      };
+      }
+      else if (packetbuffer[1] == 'W') {
+        pidWindowSize = read_packet(2) * 100;
+        aggConsThresh = read_packet(5);
+        myPID.SetOutputLimits(0, pidWindowSize);
+      }
+      else if (packetbuffer[1] == 'K') {
+        aggKp = read_packet(2);
+        aggKi = read_packet(5);
+        aggKd = read_packet(8);
+      }
+      else if (packetbuffer[1] == 'L') {
+        consKp = read_packet(2);
+        consKi = read_packet(5);
+        consKd = read_packet(8);
+      }
     }
     Serial.print("Packet: ");
     Serial.println(packetbuffer[1]);
@@ -553,6 +568,22 @@ void run_pid() {
       Serial.print(pidSetpoint);
       Serial.print(" Heat: ");
       Serial.print(heatOnTime);
+      Serial.print(" Win: ");
+      Serial.print(pidWindowSize);
+      Serial.print(" Thresh: ");
+      Serial.print(aggConsThresh);
+      Serial.print(" K ");
+      Serial.print((int)consKp);
+      Serial.print("|");
+      Serial.print((int)consKi);
+      Serial.print("|");
+      Serial.print((int)consKd);
+      Serial.print("|");
+      Serial.print((int)aggKp);
+      Serial.print("|");
+      Serial.print((int)aggKi);
+      Serial.print("|");
+      Serial.print((int)aggKd);
       Serial.print(" Time: ");
       Serial.println(now - windowStartTime);
     
