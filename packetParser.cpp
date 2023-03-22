@@ -114,6 +114,8 @@ uint8_t readPacket(Adafruit_BLE *ble, uint16_t timeout)
 
     if ((packetbuffer[1] == 'A') && (replyidx == PACKET_AUTO_LEN))
       break;
+    if ((packetbuffer[1] == 'B') && (replyidx == PACKET_AUTO_LEN))
+      break;
     if ((packetbuffer[1] == 'P') && (replyidx == PACKET_PID_LEN))
       break;
     if ((packetbuffer[1] == 'T') && (replyidx == PACKET_MANUAL_LEN))

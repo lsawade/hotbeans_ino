@@ -311,6 +311,13 @@ void loop(void)
       profileStartTemp = read_packet(8);
       profileEndTemp = read_packet(11);
     }
+    else if (packetbuffer[1] == 'B') {
+      // PID with profile
+      profileStartTime = millis();
+      profileDuration = read_fan() + 1000;
+      profileStartTemp = read_packet(8);
+      profileEndTemp = read_packet(11);
+    }
     else {
       profileStartTime = 0;
       if (packetbuffer[1] == 'T') {
